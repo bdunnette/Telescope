@@ -1,10 +1,3 @@
-// commentIsNew=function(comment){
-//   var d=new Date(comment.submitted);
-//   var commentIsNew=d > new Date(Session.get('requestTimestamp'));
-//   // console.log("------------\n body: "+comment.body+" \n comment submission date: "+d+" \n  requestTimestamp: "+new Date(Session.get('requestTimestamp'))+" \n now: "+new Date()+"\nisNew: "+commentIsNew);
-//   return commentIsNew;
-// };
-
 findQueueContainer=function($comment){
   // go up and down the DOM until we find either A) a queue container or B) an unqueued comment
   $up=$comment.prevAll(".queue-container, .comment-displayed").first();
@@ -63,12 +56,60 @@ findQueueContainer=function($comment){
   return $container;
 };
 
-Template.comment_item.created = function() {
+Template[getTemplate('comment_item')].created = function() {
   // if comments are supposed to be queued, then queue this comment on create
   this.isQueued = window.queueComments;
 }
 
-Template.comment_item.rendered=function(){
+Template[getTemplate('comment_item')].helpers({
+  comment_item: function () {
+    return getTemplate('comment_item');
+  },
+  full_date: function(){
+    return this.createdAt.toString();
+  },
+  child_comments: function(){
+    // return only child comments
+    return Comments.find({parentCommentId: this._id });
+  },
+  author: function(){
+    return Meteor.users.findOne(this.userId);
+  },
+  authorName: function(){
+    return getAuthorName(this);
+  },
+  user_avatar: function(){
+    if(author=Meteor.users.findOne(this.userId))
+      return getAvatarUrl(author);
+  },
+  can_edit: function(){
+    if(this.userId && Meteor.userId())
+      return Meteor.user().isAdmin || (Meteor.userId() === this.userId);
+    else
+      return false;
+  },
+  showChildComments: function(){
+    // TODO: fix this
+    // return Session.get('showChildComments');
+    return true;
+  },
+  ago: function(){
+    return moment(this.createdAt).fromNow();
+  },
+  upvoted: function(){
+    return Meteor.user() && _.include(this.upvoters, Meteor.user()._id);
+  },
+  downvoted: function(){
+    return Meteor.user() && _.include(this.downvoters, Meteor.user()._id);
+  },
+  profileUrl: function(){
+    var user = Meteor.users.findOne(this.userId);
+    if(user)
+      return getProfileUrl(user);
+  }  
+});
+
+Template[getTemplate('comment_item')].rendered=function(){
   if(this.data){
     var comment=this.data;
     var $comment=$("#"+comment._id);
@@ -98,60 +139,6 @@ Template.comment_item.rendered=function(){
   }
 }
 
-
-Template.comment_item.helpers({
-  full_date: function(){
-    var submitted = new Date(this.submitted);
-    return submitted.toString();
-  },
-  child_comments: function(){
-    // return only child comments
-    return Comments.find({parent: this._id });
-  },
-  author: function(){
-    return Meteor.users.findOne(this.userId);
-  },
-  authorName: function(){
-    return getAuthorName(this);
-  },
-  user_avatar: function(){
-    if(author=Meteor.users.findOne(this.userId))
-      return getAvatarUrl(author);
-  },
-  can_edit: function(){
-    if(this.userId && Meteor.userId())
-      return Meteor.user().isAdmin || (Meteor.userId() === this.userId);
-    else
-      return false;
-  },
-  body_formatted: function(){
-    if(this.body){
-      var converter = new Markdown.Converter();
-      var html_body=converter.makeHtml(this.body);
-      return html_body.autoLink();
-    }
-  },
-  showChildComments: function(){
-    // TODO: fix this
-    // return Session.get('showChildComments');
-    return true;
-  },
-  ago: function(){
-    return moment(this.createdAt).fromNow();
-  },
-  upvoted: function(){
-    return Meteor.user() && _.include(this.upvoters, Meteor.user()._id);
-  },
-  downvoted: function(){
-    return Meteor.user() && _.include(this.downvoters, Meteor.user()._id);
-  },
-  profileUrl: function(){
-    var user = Meteor.users.findOne(this.userId);
-    if(user)
-      return getProfileUrl(user);
-  }  
-});
-
 Template.comment_item.events({
   'click .queue-comment': function(e){
     e.preventDefault();
@@ -160,7 +147,7 @@ Template.comment_item.events({
     var comment_id = Comments.update(current_comment_id,
         {
           $set: {
-            submitted:  new Date().getTime()
+            postedAt:  new Date().getTime()
           }
         }
       );

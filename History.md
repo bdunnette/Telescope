@@ -1,3 +1,18 @@
+## v0.9.1
+
+* Using Arunoda's [Subscription Manager](https://github.com/meteorhacks/subs-manager).
+
+## v0.9
+
+* See [blog post](http://telesc.pe/blog/telescope-v09-modulescope) for changelog. 
+
+## v0.8.3 “CleanScope”
+
+* Refactored the way dating and timestamping works with pending/approved posts. 
+* Cleaned up unused/old third-party code.
+* Migrated "submitted" property to "postedAt".
+* Added a "postedAt" property to comments.
+
 ## v0.8.2 “SchemaScope”
 
 * Improved migrations with timestamps and number of rows affected.

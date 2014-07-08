@@ -1,18 +1,19 @@
-Template.post_page.helpers({
-  post: function () {
-    return Posts.findOne(this.postId);
+Template[getTemplate('post_page')].helpers({
+  post_item: function () {
+    return getTemplate('post_item');
   },
-  body_formatted: function(){
-    var converter = new Markdown.Converter();
-    var html_body=converter.makeHtml(this.body);
-    return html_body.autoLink();
+  post_body: function () {
+    return getTemplate('post_body');
   },
-  canComment: function(){
-    return canComment(Meteor.user());
+  comment_form: function () {
+    return getTemplate('comment_form');
+  },
+  comment_list: function () {
+    return getTemplate('comment_list');
   }
-}); 
+})
 
-Template.post_page.rendered = function(){
+Template[getTemplate('post_page')].rendered = function(){
   if((scrollToCommentId=Session.get('scrollToCommentId')) && !this.rendered && $('#'+scrollToCommentId).exists()){
     scrollPageTo('#'+scrollToCommentId);
     Session.set('scrollToCommentId', null);

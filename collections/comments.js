@@ -4,7 +4,15 @@ Comments = new Meteor.Collection("comments", {
       type: String,
       optional: true
     },
+    parentCommentId: {
+      type: String,
+      optional: true
+    },
     createdAt: {
+      type: Date,
+      optional: true
+    },
+    postedAt: { // for now, comments are always created and posted at the same time
       type: Date,
       optional: true
     },
@@ -107,6 +115,7 @@ Meteor.methods({
       body: cleanText,
       userId: user._id,
       createdAt: new Date(),
+      postedAt: new Date(),
       upvotes: 0,
       downvotes: 0,
       baseScore: 0,
@@ -115,7 +124,7 @@ Meteor.methods({
     };
     
     if(parentCommentId)
-      comment.parent = parentCommentId;
+      comment.parentCommentId = parentCommentId;
 
     var newCommentId=Comments.insert(comment);
 
@@ -188,7 +197,7 @@ Meteor.methods({
     var comment=Comments.findOne(commentId);
     if(canEdit(Meteor.user(), comment)){
       // decrement post comment count
-      Posts.update(comment.post, {$inc: {comments: -1}});
+      Posts.update(comment.postId, {$inc: {comments: -1}});
 
       // decrement user comment count
       Meteor.users.update({_id: comment.userId}, {$inc: {commentCount: -1}});

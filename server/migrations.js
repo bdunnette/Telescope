@@ -1,3 +1,5 @@
+// TODO: switch over to Tom's migration package.
+
 // database migrations
 // http://stackoverflow.com/questions/10365496/meteor-how-to-perform-database-migrations
 Migrations = new Meteor.Collection('migrations');
@@ -221,6 +223,36 @@ var migrationsList = {
         Comments.update(comment._id, { $set: { 'createdAt': createdAt}}, {multi: true, validate: false});
         console.log("---------------------");
       }
+    });
+    return i;
+  },
+  submittedToPostedAt: function () {
+    var i = 0;
+    Posts.find({postedAt: {$exists : false}}).forEach(function (post) {
+      i++;
+      console.log("Post: "+post._id);
+      Posts.update(post._id, { $rename: { 'submitted': 'postedAt'}}, {multi: true, validate: false});
+      console.log("---------------------");
+    });
+    return i;
+  },
+  addPostedAtToComments: function () {
+    var i = 0;
+    Comments.find({postedAt: {$exists : false}}).forEach(function (comment) {
+      i++;
+      console.log("Comment: "+comment._id);
+      Comments.update(comment._id, { $set: { 'postedAt': comment.createdAt}}, {multi: true, validate: false});
+      console.log("---------------------");
+    });
+    return i;
+  },
+  parentToParentCommentId: function () {
+    var i = 0;
+    Comments.find({parentCommentId: {$exists : false}}).forEach(function (comment) {
+      i++;
+      console.log("Comment: "+comment._id);
+      Comments.update(comment._id, { $set: { 'parentCommentId': comment.parent}}, {multi: true, validate: false});
+      console.log("---------------------");
     });
     return i;
   }

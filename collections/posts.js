@@ -1,7 +1,3 @@
-// Posts = new Meteor.Collection('posts');
-
-// Note: XXX = change this
-
 postSchemaObject = {
   _id: {
     type: String,
@@ -11,7 +7,7 @@ postSchemaObject = {
     type: Date,
     optional: true
   },
-  submitted: {
+  postedAt: {
     type: Date,
     optional: true
   },    
@@ -33,6 +29,10 @@ postSchemaObject = {
     optional: true
   },
   comments: {
+    type: Number,
+    optional: true
+  },
+  clicks: {
     type: Number,
     optional: true
   },
@@ -116,20 +116,15 @@ Meteor.methods({
         body = cleanUp(post.body),
         user = Meteor.user(),
         userId = user._id,
-        submitted = post.submitted || new Date(),
-        defaultStatus = getSetting('requirePostsApproval') ? STATUS_PENDING : STATUS_APPROVED,
-        status = post.status || defaultStatus,
-        postWithSameLink = Posts.findOne({url: post.url}), // TODO: limit scope of search to past month or something
         timeSinceLastPost=timeSinceLast(user, Posts),
         numberOfPostsInPast24Hours=numberOfItemsInPast24Hours(user, Posts),
         postInterval = Math.abs(parseInt(getSetting('postInterval', 30))),
         maxPostsPer24Hours = Math.abs(parseInt(getSetting('maxPostsPerDay', 30))),
         postId = '';
+    
 
-    // only let admins post as another user
-    if(isAdmin(Meteor.user()))
-      userId = post.userId || user._id; 
-        
+    // ------------------------------ Checks ------------------------------ //
+
     // check that user can post
     if (!user || !canPost(user))
       throw new Meteor.Error(601, i18n.t('You need to login or be invited to post new stories.'));
@@ -138,10 +133,16 @@ Meteor.methods({
     if(!post.title)
       throw new Meteor.Error(602, i18n.t('Please fill in a title'));
 
-    // check that there are no previous posts with the same link
-    if(post.url && (typeof postWithSameLink !== 'undefined')){
-      Meteor.call('upvotePost', postWithSameLink);
-      throw new Meteor.Error(603, i18n.t('This link has already been posted'), postWithSameLink._id);
+
+    if(!!post.url){
+      // check that there are no previous posts with the same link in the past 6 months
+      var sixMonthsAgo = moment().subtract('months', 6).toDate();
+      var postWithSameLink = Posts.findOne({url: post.url, postedAt: {$gte: sixMonthsAgo}});
+
+      if(typeof postWithSameLink !== 'undefined'){
+        Meteor.call('upvotePost', postWithSameLink);
+        throw new Meteor.Error(603, i18n.t('This link has already been posted'), postWithSameLink._id);
+      }
     }
 
     if(!isAdmin(Meteor.user())){
@@ -154,34 +155,65 @@ Meteor.methods({
         throw new Meteor.Error(605, i18n.t('Sorry, you cannot submit more than ')+maxPostsPer24Hours+i18n.t(' posts per day'));
     }
 
-    post = _.extend(post, {
+    // ------------------------------ Properties ------------------------------ //
+
+    // Basic Properties
+    properties = {
       title: title,
       body: body,
       userId: userId,
       author: getDisplayNameById(userId),
-      createdAt: new Date(),
       upvotes: 0,
       downvotes: 0,
       comments: 0,
       baseScore: 0,
       score: 0,
       inactive: false,
-      status: status
-    });
-
-    if(status == STATUS_APPROVED){
-      // if post is approved, set its submitted date (if post is pending, submitted date is left blank)
-      post.submitted  = submitted;
     }
 
-    // console.log(post)
+    // UserId    
+    if(isAdmin(Meteor.user()) && !!post.userId){ // only let admins post as other users
+      properties.userId = post.userId; 
+    }
 
-    postId = Posts.insert(post);
+    // Status
+    var defaultPostStatus = getSetting('requirePostsApproval') ? STATUS_PENDING : STATUS_APPROVED;
+    if(isAdmin(Meteor.user()) && !!post.status){ // if user is admin and a custom status has been set
+      properties.status = post.status;
+    }else{ // else use default status
+      properties.status = defaultPostStatus; 
+    }
+
+    // CreatedAt
+    properties.createdAt = new Date();
+
+    // PostedAt
+    if(properties.status == 2){ // only set postedAt if post is approved
+      if(isAdmin(Meteor.user()) && !!post.postedAt){ // if user is admin and a custom postDate has been set
+        properties.postedAt = post.postedAt;
+      }else{ // else use current time
+        properties.postedAt = new Date();
+      }
+    }
+
+    post = _.extend(post, properties);
+
+    // ------------------------------ Callbacks ------------------------------ //
+
+    // run all post submit server callbacks on post object successively
+    post = postSubmitServerCallbacks.reduce(function(result, currentFunction) {
+        return currentFunction(result);
+    }, post);
+
+    // ------------------------------ Insert ------------------------------ //
+
+    // console.log(post)
+    post._id = Posts.insert(post);
+
+    // ------------------------------ Post-Insert ------------------------------ //
 
     // increment posts count
     Meteor.users.update({_id: userId}, {$inc: {postCount: 1}});
-
-    post = _.extend(post, {_id: postId});
 
     var postAuthor =  Meteor.users.findOne(post.userId);
 
@@ -195,7 +227,7 @@ Meteor.methods({
           postAuthorName : getDisplayName(postAuthor),
           postAuthorId : post.userId,
           postTitle : title,
-          postId : postId
+          postId : post._id
         }
       };
       // call a server method because we do not have access to users' info on the client
@@ -204,9 +236,16 @@ Meteor.methods({
       });
     }
 
-    // add the post's own ID to the post object and return it to the client
-    post.postId = postId;
     return post;
+  },
+  setPostedAt: function(post, customPostedAt){
+
+    var postedAt = new Date(); // default to current date and time
+        
+    if(isAdmin(Meteor.user()) && typeof customPostedAt !== 'undefined') // if user is admin and a custom datetime has been set
+      var postedAt = customPostedAt;
+
+    Posts.update(post._id, {$set: {postedAt: postedAt}});
   },
   post_edit: function(post){
     // TODO: make post_edit server-side?
@@ -214,7 +253,7 @@ Meteor.methods({
   approvePost: function(post){
     if(isAdmin(Meteor.user())){
       var now = new Date();
-      Posts.update(post._id, {$set: {status: 2, submitted: now}});
+      Posts.update(post._id, {$set: {status: 2, postedAt: now}});
     }else{
       throwError('You need to be an admin to do that.');
     }

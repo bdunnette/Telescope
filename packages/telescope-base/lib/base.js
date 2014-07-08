@@ -1,7 +1,9 @@
 // Initialize common arrays
 
-// array containing properties to be added to the post schema on startup.
+// array containing properties to be added to the post/settings/comments schema on startup.
 addToPostSchema = [];
+addToCommentsSchema = [];
+addToSettingsSchema = [];
 
 // array containing items in the views menu
 viewNav = [];
@@ -23,7 +25,7 @@ viewParameters.top = function (terms, baseParameters) {
 }
 
 viewParameters.new = function (terms, baseParameters) {
-  return deepExtend(true, baseParameters, {options: {sort: {sticky: -1, submitted: -1}}});
+  return deepExtend(true, baseParameters, {options: {sort: {sticky: -1, postedAt: -1}}});
 }
 
 viewParameters.best = function (terms, baseParameters) {
@@ -37,7 +39,7 @@ viewParameters.pending = function (terms, baseParameters) {
 viewParameters.digest = function (terms, baseParameters) {
   var parameters = deepExtend(true, baseParameters, {
     find: {
-      submitted: {
+      postedAt: {
         $gte: terms.after, 
         $lt: terms.before
       }
@@ -48,3 +50,54 @@ viewParameters.digest = function (terms, baseParameters) {
   });
   return parameters;
 }
+
+// array containing post modules
+modulePositions = [
+  'left-left',
+  'left-center',
+  'left-right',
+  'center-left',
+  'center-center',
+  'center-right',
+  'right-left',
+  'right-center',
+  'right-right'
+];
+
+postModules = [
+  {
+    template: 'postUpvote',
+    position: 'left-left'
+  },
+  {
+    template: 'postContent', 
+    position: 'center-center'
+  },
+  {
+    template: 'postDiscuss',
+    position: 'right-right'
+  }
+];
+
+// ------------------------------ Callbacks ------------------------------ //
+
+postSubmitClientCallbacks = [];
+postSubmitServerCallbacks = [];
+
+postEditClientCallbacks = [];
+
+commentEditClientCallbacks = []; // not used yet
+commentEditServerCallbacks = []; // not used yet
+
+commentEditClientCallbacks = []; // not used yet
+
+// ------------------------------ Dynamic Templates ------------------------------ //
+
+
+templates = {}
+
+getTemplate = function (name) {
+  // if template has been overwritten, return this; else return template name
+  return !!templates[name] ? templates[name] : name;
+}
+
